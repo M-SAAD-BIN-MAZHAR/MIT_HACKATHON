@@ -71,17 +71,32 @@
       }
     }
 
-    // For buttons - try text matching
-    if (lower.includes('button') || lower === 'button' || lower.includes('add') || lower.includes('cart') || lower.includes('search')) {
-      const buttons = document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"], a[role="button"], span[role="button"], input[value]');
-      const searchTexts = ['send', 'submit', 'post', 'enter', 'add to cart', 'add to basket', 'search', 'go', 'buy now', 'add to bag', 'add to', 'cart'];
+    // For buttons - try text matching (add to cart, save, done, search, etc.)
+    const buttonLikeSelectors = lower.includes('button') || lower === 'button' || lower.includes('add') || lower.includes('cart') || lower.includes('search') || lower.includes('save') || lower.includes('done') || lower.includes('close') || lower.includes('check');
+    if (buttonLikeSelectors) {
+      let buttons = Array.from(document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"], a[role="button"], span[role="button"], input[value], div[role="button"]'));
+      // Google Keep / note apps: icon buttons with aria-label (Done, Save, Close) — add to list
+      if (lower.includes('save') || lower.includes('done') || lower.includes('close') || lower.includes('check')) {
+        document.querySelectorAll('[aria-label], [title]').forEach((el) => {
+          const label = (el.getAttribute('aria-label') || el.getAttribute('title') || '').toLowerCase();
+          if (label && ['done', 'save', 'close', 'check', 'tick', 'submit', 'confirm'].some((t) => label.includes(t)) && isElementVisible(el)) {
+            buttons.push(el);
+          }
+        });
+      }
+      // Add-to-cart and save/done variants (Daraz, Amazon, Google Keep, etc.)
+      const searchTexts = [
+        'send', 'submit', 'post', 'enter', 'search', 'go', 'buy now',
+        'add to cart', 'add to basket', 'add to bag', 'add to', 'cart', 'bag',
+        'save', 'done', 'close', 'check', 'tick', 'checkmark', 'finish', 'confirm'
+      ];
       for (const btn of buttons) {
         if (!isElementVisible(btn)) continue;
         const text = (btn.textContent || btn.value || btn.getAttribute('aria-label') || btn.title || btn.getAttribute('data-action') || '').toLowerCase();
         if (searchTexts.some((t) => text.includes(t))) return btn;
       }
-      // Try matching selector as button label (e.g. selector="Add to Cart")
-      if (selector && selector.length > 3 && selector.length < 80 && !selector.includes('[') && !selector.includes('#')) {
+      // Try matching selector as button label (e.g. selector="Add to Cart" or "Done")
+      if (selector && selector.length > 2 && selector.length < 80 && !selector.includes('[') && !selector.includes('#')) {
         const selText = selector.replace(/["']/g, '').trim().toLowerCase();
         for (const btn of buttons) {
           if (!isElementVisible(btn)) continue;

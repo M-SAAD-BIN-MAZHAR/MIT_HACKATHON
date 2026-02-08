@@ -26,37 +26,41 @@ const DECISION_FINAL_PROMPT = `You are an intelligent browser automation planner
 
 CRITICAL: You MUST use ONLY selectors from the provided page structure. Every website has different DOM — never assume predefined selectors. Use the exact "selector" values from the page data when available.
 
+CRITICAL — NEVER SKIP THE FINAL ACTION:
+- If the user said "add to cart" / "add to bag" / "add it to cart" → you MUST output a CLICK action for the Add-to-Cart button. Find the button whose "text" contains "Add to Cart", "Add to Bag", "Add to Basket", "Cart" and use its "selector".
+- If the user said "save" / "add task" / "add note" / "add a task" (e.g. Google Keep) → you MUST output a CLICK action AFTER the TYPE. Typing the task is not enough — the user must click Save / Done / Checkmark / Close to save. Find the button or icon with "Done", "Save", "Close", "Check" (or aria-label) and use its "selector".
+- Never end a "add to cart" or "save task" goal with only TYPE — always include the CLICK that completes the action.
+
 AVAILABLE ACTION TYPES:
 - NAVIGATE: Navigate to a URL
 - TYPE: Type text into an input field
 - CLICK: Click a button or link
 - SUBMIT_FORM: Submit a form
 
-MULTI-STEP WORKFLOW: The user goal may require multiple page interactions. Plan ONLY the next 1-5 actions for the CURRENT page. After execution, the agent will re-extract the new page DOM and plan the next step.
-- "open amazon" → NAVIGATE to amazon.com
-- "find iphone 16 pro max" → TYPE in search input, CLICK search button
-- "add to cart" → CLICK the "Add to Cart" button (use selector from page data)
+MULTI-STEP WORKFLOW: Plan the next 1-5 actions for the CURRENT page. After execution, the agent re-extracts the page and plans the next step.
 
 SELECTOR RULES:
-1. ALWAYS prefer the exact "selector" from the provided buttons/inputs/links — that is the real DOM selector
-2. Match by text: find button whose "text" contains "Add to Cart", "Search", "Submit" — use its "selector"
-3. For search: find input with name/placeholder containing "search" — use its "selector"
-4. Fallback: "input[name='...']", "textarea", "button" (executor has smart matching)
+1. Prefer the exact "selector" from the provided buttons/inputs/links.
+2. For "add to cart": find button with text containing "Add to Cart", "Add to Bag", "Add to Basket", "Cart", "Buy" — use that button's "selector".
+3. For "save task" / Google Keep: find button/element with text or aria-label "Done", "Save", "Close", "Check" (checkmark) — use its "selector". If you see a checkmark icon or "Done" button, that is the save action.
+4. Fallback: "button", "input[type='submit']" (executor matches by text).
 
-E-COMMERCE EXAMPLES:
+EXAMPLES:
 
-Goal: "open amazon and find iphone 16 pro max"
-Current URL: "chrome://newtab"
-Actions: [{"type": "NAVIGATE", "url": "https://www.amazon.com"}]
-(Next loop: on Amazon home, plan TYPE + CLICK search)
+Goal: "add to cart" or "add it to the cart" (on Daraz/Amazon/product page)
+Page has: buttons list with one "Add to Cart" or "Add to Bag"
+Actions: [{"type": "CLICK", "selector": "<exact selector from that button in page data>"}]
+If no exact selector, use: {"type": "CLICK", "selector": "Add to Cart"} (executor finds by text)
 
-Goal: "find iphone 16 pro max" (already on Amazon)
-Page has: input with selector "#twotabsearchtextbox", button "Go"
-Actions: [{"type": "TYPE", "selector": "#twotabsearchtextbox", "value": "iphone 16 pro max"}, {"type": "CLICK", "selector": "input[value='Go']"}]
+Goal: "open Google Keep and add a random task" or "add a task"
+Step 1: NAVIGATE to https://keep.google.com
+Step 2 (on Keep): TYPE in the note/title input, then CLICK the Done/Save/Checkmark button
+Actions: [{"type": "TYPE", "selector": "<selector of note input>", "value": "random task"}, {"type": "CLICK", "selector": "<selector of Done/Save/checkmark button>"}]
+You MUST include both TYPE and CLICK. Without CLICK, the note is not saved.
 
-Goal: "add to cart" (on product or search results page)
-Page has: button with text "Add to Cart", selector from page
-Actions: [{"type": "CLICK", "selector": "<use exact selector from button whose text contains 'Add to Cart'>"}]
+Goal: "add a random task" (already on Google Keep, note is focused or visible)
+Actions: [{"type": "TYPE", "selector": "textarea or [contenteditable] or input", "value": "My random task"}, {"type": "CLICK", "selector": "Done"}]
+Or use the selector from page data for the "Done" / checkmark button.
 
 WHEN GOAL IS ACHIEVED: Return empty actions: {"actions": [], "required_permissions": []}
 
@@ -133,13 +137,27 @@ async function decisionFinal(state, callLLM) {
     if (!url.includes('amazon.')) {
       navigationHint = '\n\nNOTE: User wants Amazon. You MUST include NAVIGATE action to https://www.amazon.com first!';
     }
+  } else if (goal.includes('daraz')) {
+    if (!url.includes('daraz')) {
+      navigationHint = '\n\nNOTE: User wants Daraz. You MUST include NAVIGATE action to https://www.daraz.pk (or .pk/.bd/.lk as appropriate) first!';
+    }
+  } else if (goal.includes('google keep') || (goal.includes('keep') && (goal.includes('task') || goal.includes('note') || goal.includes('add')))) {
+    if (!url.includes('keep.google.com')) {
+      navigationHint = '\n\nNOTE: User wants Google Keep. You MUST include NAVIGATE action to https://keep.google.com first! After typing a task/note you MUST add a CLICK action for Done/Save/checkmark to save it!';
+    }
   }
+
+  const goalLower = (state.userGoal || '').toLowerCase();
+  const needsFinalClick = /\b(add to cart|add to bag|save|add task|add note|add a task)\b/.test(goalLower);
+  const finalClickReminder = needsFinalClick
+    ? '\n\nREMINDER: The user goal requires a final CLICK (Add to Cart / Save / Done) to complete. You MUST include that CLICK action — do not output only TYPE.'
+    : '';
 
   const messages = [
     { role: 'system', content: DECISION_FINAL_PROMPT },
     {
       role: 'user',
-      content: `User goal: ${state.userGoal}\n\nCurrent page: ${state.currentUrl}\n\nPage structure:\n${JSON.stringify(pageInfo, null, 2)}${navigationHint}\n\nIMPORTANT: Use the page elements above. Create TYPE and CLICK actions using the actual selectors provided. If navigation is needed, include NAVIGATE action FIRST.`,
+      content: `User goal: ${state.userGoal}\n\nCurrent page: ${state.currentUrl}\n\nPage structure:\n${JSON.stringify(pageInfo, null, 2)}${navigationHint}${finalClickReminder}\n\nUse the page elements above. Use actual selectors from the structure. If navigation is needed, include NAVIGATE first.`,
     },
   ];
   const response = await callLLM(messages);
