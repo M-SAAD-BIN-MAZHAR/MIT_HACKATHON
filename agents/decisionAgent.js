@@ -22,9 +22,9 @@ Action types: NAVIGATE, READ_PAGE, CLICK, TYPE, SUBMIT_FORM.
 Permission types: READ_PAGE, OPEN_TAB, FILL_FORM, SUBMIT_ACTION.
 If no page data yet, focus on navigation first. Keep actions minimal and ordered.`;
 
-const DECISION_FINAL_PROMPT = `You are an intelligent browser automation planner. You receive COMPLETE page structure: buttons, forms, links, inputs (with labels, placeholders, types), and visible text.
+const DECISION_FINAL_PROMPT = `You are an intelligent browser automation planner. You receive the LIVE page structure extracted from the ACTUAL DOM: buttons, forms, links, inputs (with selectors, labels, placeholders).
 
-YOUR JOB: Create a plan to interact with the ACTUAL browser page using DOM elements.
+CRITICAL: You MUST use ONLY selectors from the provided page structure. Every website has different DOM — never assume predefined selectors. Use the exact "selector" values from the page data when available.
 
 AVAILABLE ACTION TYPES:
 - NAVIGATE: Navigate to a URL
@@ -32,61 +32,37 @@ AVAILABLE ACTION TYPES:
 - CLICK: Click a button or link
 - SUBMIT_FORM: Submit a form
 
-STRATEGY:
-1. If user wants to go to a specific site (ChatGPT, Google, etc.) and we're not there → NAVIGATE first
-2. Find the right input field by matching label, placeholder, or type
-3. TYPE the value into that input
-4. Find and CLICK the submit/send button
+MULTI-STEP WORKFLOW: The user goal may require multiple page interactions. Plan ONLY the next 1-5 actions for the CURRENT page. After execution, the agent will re-extract the new page DOM and plan the next step.
+- "open amazon" → NAVIGATE to amazon.com
+- "find iphone 16 pro max" → TYPE in search input, CLICK search button
+- "add to cart" → CLICK the "Add to Cart" button (use selector from page data)
 
-EXAMPLES:
+SELECTOR RULES:
+1. ALWAYS prefer the exact "selector" from the provided buttons/inputs/links — that is the real DOM selector
+2. Match by text: find button whose "text" contains "Add to Cart", "Search", "Submit" — use its "selector"
+3. For search: find input with name/placeholder containing "search" — use its "selector"
+4. Fallback: "input[name='...']", "textarea", "button" (executor has smart matching)
 
-Goal: "open ChatGPT and write hello world"
+E-COMMERCE EXAMPLES:
+
+Goal: "open amazon and find iphone 16 pro max"
 Current URL: "chrome://newtab"
-Actions:
-[
-  {"type": "NAVIGATE", "url": "https://chat.openai.com"},
-  {"type": "TYPE", "selector": "textarea", "value": "hello world"},
-  {"type": "CLICK", "selector": "button[aria-label='Send']"}
-]
+Actions: [{"type": "NAVIGATE", "url": "https://www.amazon.com"}]
+(Next loop: on Amazon home, plan TYPE + CLICK search)
 
-Goal: "search Google for AI"
-Current URL: "https://www.google.com"
-Page has: input with name="q"
-Actions:
-[
-  {"type": "TYPE", "selector": "input[name='q']", "value": "AI"},
-  {"type": "CLICK", "selector": "button[type='submit']"}
-]
+Goal: "find iphone 16 pro max" (already on Amazon)
+Page has: input with selector "#twotabsearchtextbox", button "Go"
+Actions: [{"type": "TYPE", "selector": "#twotabsearchtextbox", "value": "iphone 16 pro max"}, {"type": "CLICK", "selector": "input[value='Go']"}]
 
-Goal: "write test message"
-Current URL: "https://example.com/chat"
-Page has: textarea with placeholder="Type a message"
-Actions:
-[
-  {"type": "TYPE", "selector": "textarea[placeholder='Type a message']", "value": "test message"},
-  {"type": "CLICK", "selector": "button containing 'Send'"}
-]
+Goal: "add to cart" (on product or search results page)
+Page has: button with text "Add to Cart", selector from page
+Actions: [{"type": "CLICK", "selector": "<use exact selector from button whose text contains 'Add to Cart'>"}]
 
-SELECTOR MATCHING RULES:
-- Use EXACT selectors from the page data provided
-- For inputs: match by selector, type, label, or placeholder
-- For buttons: match by selector or text content
-- For contenteditable: use the selector as-is
-
-VALUE EXTRACTION:
-- "write X" → value="X"
-- "search for X" → value="X"  
-- "type X" → value="X"
-
-CRITICAL: You MUST use actual DOM elements. No API calls, no shortcuts. Real browser automation only.
+WHEN GOAL IS ACHIEVED: Return empty actions: {"actions": [], "required_permissions": []}
 
 Respond ONLY with valid JSON:
 {
-  "actions": [
-    {"type": "NAVIGATE", "url": "https://..."},
-    {"type": "TYPE", "selector": "exact-selector-from-page", "value": "extracted-value"},
-    {"type": "CLICK", "selector": "exact-button-selector"}
-  ],
+  "actions": [...],
   "required_permissions": ["READ_PAGE", "FILL_FORM", "SUBMIT_ACTION", "OPEN_TAB"]
 }`;
 
@@ -144,13 +120,18 @@ async function decisionFinal(state, callLLM) {
   // Check if navigation is needed based on goal
   let navigationHint = '';
   const goal = (state.userGoal || '').toLowerCase();
+  const url = (state.currentUrl || '').toLowerCase();
   if (goal.includes('chatgpt') || goal.includes('gpt') || goal.includes('openai')) {
-    if (!state.currentUrl.includes('chat.openai.com') && !state.currentUrl.includes('chatgpt.com')) {
-      navigationHint = '\n\nNOTE: User wants ChatGPT but current page is not ChatGPT. You MUST include NAVIGATE action to https://chat.openai.com first!';
+    if (!url.includes('chat.openai.com') && !url.includes('chatgpt.com')) {
+      navigationHint = '\n\nNOTE: User wants ChatGPT. You MUST include NAVIGATE action to https://chat.openai.com first!';
     }
-  } else if (goal.includes('google') && goal.includes('search')) {
-    if (!state.currentUrl.includes('google.com')) {
-      navigationHint = '\n\nNOTE: User wants Google but current page is not Google. You MUST include NAVIGATE action to https://www.google.com first!';
+  } else if ((goal.includes('google') && goal.includes('search')) || goal.includes('search google')) {
+    if (!url.includes('google.com')) {
+      navigationHint = '\n\nNOTE: User wants Google. You MUST include NAVIGATE action to https://www.google.com first!';
+    }
+  } else if (goal.includes('amazon') || goal.includes('amzn')) {
+    if (!url.includes('amazon.')) {
+      navigationHint = '\n\nNOTE: User wants Amazon. You MUST include NAVIGATE action to https://www.amazon.com first!';
     }
   }
 

@@ -333,10 +333,11 @@ async function startSession(userGoal, sendResponse) {
       const waitMs = /chat\.openai\.com|chatgpt\.com/i.test(action.url) ? 8000 : 3500;
       await new Promise((r) => setTimeout(r, waitMs));
       
-      // Wait for page to be fully loaded
-      const tab = await chrome.tabs.get(currentTabId);
+      // Wait for page to be fully loaded (re-fetch tab each iteration)
       let attempts = 0;
-      while (tab.status !== 'complete' && attempts < 10) {
+      while (attempts < 10) {
+        const t2 = await chrome.tabs.get(currentTabId);
+        if (t2.status === 'complete') break;
         await new Promise((r) => setTimeout(r, 500));
         attempts++;
       }
@@ -412,7 +413,7 @@ async function startSession(userGoal, sendResponse) {
     return false;
   };
 
-  const MAX_NAV_LOOPS = 5;
+  const MAX_NAV_LOOPS = 15; // Multi-step workflows: open site → search → add to cart → etc.
   const MAX_RETRIES_PER_ACTION = 5;
 
   try {
@@ -454,11 +455,11 @@ async function startSession(userGoal, sendResponse) {
       checkState();
       if (state.stopped) break;
 
-      // Extract page content
+      // Extract page content — ALWAYS from live DOM, never predefined
       broadcastLog('reader', 'Extracting page content...', {});
       const dom = await getDOMFromTab(currentTabId, true);
       state.domSnapshot = dom?.html ?? JSON.stringify(dom ?? {});
-      state.pageData = {
+      const rawPageData = {
         buttons: dom?.buttons || [],
         forms: dom?.forms || [],
         links: dom?.links || [],
@@ -466,18 +467,24 @@ async function startSession(userGoal, sendResponse) {
         important_text: dom?.important_text || [],
         full_text: dom?.full_text || '',
       };
+      state.pageData = rawPageData;
       state.currentUrl = currentUrl;
 
       broadcastLog('reader', 'Page extracted', {
         buttons: state.pageData.buttons?.length ?? 0,
         forms: state.pageData.forms?.length ?? 0,
         links: state.pageData.links?.length ?? 0,
+        inputs: state.pageData.inputs?.length ?? 0,
       });
 
-      // Structure with LLM
+      // Optional: enrich with LLM (products, important_text) — but keep raw selectors as primary
       broadcastLog('reader', 'Structuring with LLM...', {});
       const reader = await readerAgent(state, callLLMFn);
-      Object.assign(state, reader);
+      state.pageData = {
+        ...rawPageData,
+        products: reader?.pageData?.products ?? [],
+        important_text: (reader?.pageData?.important_text?.length ? reader.pageData.important_text : rawPageData.important_text) || [],
+      };
       checkState();
 
       // Get available MCP tools
@@ -515,13 +522,16 @@ async function startSession(userGoal, sendResponse) {
       const navActions = (state.actions || []).filter((a) => (a.type || '').toUpperCase() === 'NAVIGATE' && a.url);
       const otherActions = (state.actions || []).filter((a) => (a.type || '').toUpperCase() !== 'NAVIGATE');
 
-      if (navActions.length > 0 && otherActions.length === 0) {
+      // CRITICAL: When NAVIGATE is needed, do it FIRST and re-plan on next loop iteration.
+      // Previously: we only navigated when otherActions.length === 0, so "open gpt and write hello"
+      // would try to TYPE/CLICK on the OLD page (e.g. chrome://newtab) and never navigate!
+      if (navActions.length > 0) {
         const a = navActions[0];
         broadcastLog('navigator', 'Navigating', { url: a.url });
         await sendToContent(a);
         const t2 = await chrome.tabs.get(currentTabId);
         currentUrl = t2.url;
-        continue;
+        continue; // Re-run loop: extract new page, re-plan TYPE/CLICK for the target site
       }
 
       state.actions = otherActions;
@@ -588,6 +598,11 @@ async function startSession(userGoal, sendResponse) {
             } else {
               // All other actions go through content script
               result = await sendActionToTab(execTabId, action);
+              
+              // Add delay after TYPE actions to ensure content is registered
+              if (actionType === 'TYPE') {
+                await new Promise(r => setTimeout(r, 500));
+              }
             }
 
             results.push({ action, result, index: i });
@@ -610,8 +625,17 @@ async function startSession(userGoal, sendResponse) {
         }
       }
 
-      state.executionResults = results;
-      break;
+      state.executionResults = (state.executionResults || []).concat(results);
+
+      // Wait for page to update (SPA navigation, search results load, etc.)
+      await new Promise(r => setTimeout(r, 2000));
+      try {
+        const t2 = await chrome.tabs.get(currentTabId);
+        currentUrl = t2.url;
+      } catch (_) {}
+
+      // Continue loop: re-extract DOM from updated page, re-plan next step
+      continue;
     }
 
     // Store successful workflow in memory

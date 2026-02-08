@@ -6,34 +6,208 @@
 (function () {
   'use strict';
 
+  function isElementVisible(el) {
+    if (!el || el.nodeType !== 1) return false;
+    const style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) return false;
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }
+
+  function findElement(selector) {
+    // Try exact selector first
+    let el = document.querySelector(selector);
+    if (el && isElementVisible(el)) return el;
+
+    // Fallback strategies for common patterns
+    const lower = (selector || '').toLowerCase();
+    
+    // For textarea / input - try all text inputs and contenteditable
+    if (lower.includes('textarea') || lower.includes('input') || lower.includes('contenteditable')) {
+      el = document.querySelector('#prompt-textarea');
+      if (el && isElementVisible(el)) return el;
+      el = document.querySelector('textarea');
+      if (el && isElementVisible(el)) return el;
+      // ChatGPT and similar: contenteditable divs (try all variants)
+      const contenteditableSelectors = [
+        '[contenteditable="true"]',
+        '[contenteditable="plaintext-only"]',
+        'div[contenteditable]',
+        '[contenteditable]',
+      ];
+      for (const sel of contenteditableSelectors) {
+        const els = document.querySelectorAll(sel);
+        for (const e of els) {
+          if (isElementVisible(e)) return e;
+        }
+      }
+    }
+
+    // For ChatGPT-specific patterns — prefer main message input
+    if (lower.includes('message') || lower.includes('prompt') || lower.includes('chat')) {
+      const chatSelectors = [
+        '#prompt-textarea',
+        'textarea[placeholder*="message"]',
+        'textarea[placeholder*="Message"]',
+        '[contenteditable="true"]',
+        '[contenteditable="plaintext-only"]',
+        'div[contenteditable="true"]',
+        'div[contenteditable]',
+        '[contenteditable]',
+        'textarea',
+      ];
+      // Prefer contenteditable with message-like placeholder/aria
+      const allEditable = document.querySelectorAll('[contenteditable="true"], [contenteditable="plaintext-only"], div[contenteditable], [contenteditable]');
+      for (const e of allEditable) {
+        if (!isElementVisible(e)) continue;
+        const ph = (e.getAttribute('placeholder') || e.getAttribute('aria-placeholder') || e.getAttribute('aria-label') || '').toLowerCase();
+        if (ph.includes('message') || ph.includes('prompt') || ph.includes('chat') || ph.includes('send')) return e;
+      }
+      for (const sel of chatSelectors) {
+        const els = document.querySelectorAll(sel);
+        for (const e of els) {
+          if (isElementVisible(e)) return e;
+        }
+      }
+    }
+
+    // For buttons - try text matching
+    if (lower.includes('button') || lower === 'button' || lower.includes('add') || lower.includes('cart') || lower.includes('search')) {
+      const buttons = document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"], a[role="button"], span[role="button"], input[value]');
+      const searchTexts = ['send', 'submit', 'post', 'enter', 'add to cart', 'add to basket', 'search', 'go', 'buy now', 'add to bag', 'add to', 'cart'];
+      for (const btn of buttons) {
+        if (!isElementVisible(btn)) continue;
+        const text = (btn.textContent || btn.value || btn.getAttribute('aria-label') || btn.title || btn.getAttribute('data-action') || '').toLowerCase();
+        if (searchTexts.some((t) => text.includes(t))) return btn;
+      }
+      // Try matching selector as button label (e.g. selector="Add to Cart")
+      if (selector && selector.length > 3 && selector.length < 80 && !selector.includes('[') && !selector.includes('#')) {
+        const selText = selector.replace(/["']/g, '').trim().toLowerCase();
+        for (const btn of buttons) {
+          if (!isElementVisible(btn)) continue;
+          const text = (btn.textContent || btn.value || btn.getAttribute('aria-label') || '').trim().toLowerCase();
+          if (text.includes(selText) || selText.includes(text)) return btn;
+        }
+      }
+      // Fallback: first visible button
+      for (const btn of buttons) {
+        if (isElementVisible(btn)) return btn;
+      }
+    }
+
+    return null;
+  }
+
+  function setCaretToEnd(el) {
+    try {
+      const range = document.createRange();
+      const sel = window.getSelection();
+      range.selectNodeContents(el);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (_) {}
+  }
+
+  function typeIntoElement(el, value) {
+    if (!value && value !== 0) value = '';
+    const str = String(value);
+    
+    el.focus();
+    el.click?.(); // Some SPAs need click to activate input
+    
+    // Handle contenteditable elements (like ChatGPT, Claude, etc.)
+    // React/SPAs often ignore direct innerText — use execCommand or character-by-character
+    if (el.isContentEditable || el.getAttribute('contenteditable')) {
+      el.focus();
+      // Clear first: select all and delete
+      try {
+        const sel = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand('delete', false, null);
+      } catch (_) {}
+
+      // Method 1: execCommand('insertText') — fires input events like real typing (works with React)
+      try {
+        setCaretToEnd(el);
+        if (document.execCommand('insertText', false, str)) {
+          el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: str }));
+          return;
+        }
+      } catch (_) {}
+
+      // Method 2: Character-by-character (most reliable when insertText fails)
+      try {
+        setCaretToEnd(el);
+        for (let i = 0; i < str.length; i++) {
+          document.execCommand('insertText', false, str[i]);
+        }
+        el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: str }));
+        return;
+      } catch (_) {}
+
+      // Method 3: Direct DOM + events fallback
+      el.focus();
+      el.textContent = '';
+      el.innerText = str;
+      el.textContent = str;
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: str }));
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
+    
+    // Handle regular input/textarea elements
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+      el.value = str;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
+    
+    // Fallback: try setting value or textContent
+    if ('value' in el) {
+      el.value = str;
+    } else {
+      el.textContent = str;
+    }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   function executeAction(action) {
     const type = (action.type || '').toUpperCase();
     if (type === 'NAVIGATE') {
       return { success: false, error: 'NAVIGATE handled by background' };
     }
     if (type === 'CLICK') {
-      const el = document.querySelector(action.selector);
+      const el = findElement(action.selector);
       if (!el) throw new Error(`Selector not found: ${action.selector}`);
       el.click();
       return { success: true, action: 'click' };
     }
     if (type === 'TYPE') {
-      const el = document.querySelector(action.selector);
+      const el = findElement(action.selector);
       if (!el) throw new Error(`Selector not found: ${action.selector}`);
-      el.focus();
       const val = action.value ?? '';
-      if (el.isContentEditable) {
-        el.textContent = val;
-        el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: val }));
-      } else {
-        el.value = val;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-      return { success: true, action: 'type' };
+      // Return promise: delay so ChatGPT/SPA input is focused, then type
+      return new Promise((resolve, reject) => {
+        el.focus();
+        setTimeout(() => {
+          try {
+            typeIntoElement(el, val);
+            resolve({ success: true, action: 'type', element: el.tagName || el.nodeName });
+          } catch (e) {
+            reject(e);
+          }
+        }, 400);
+      });
     }
     if (type === 'SUBMIT_FORM') {
-      const el = document.querySelector(action.selector) || document.querySelector('form');
+      const el = findElement(action.selector) || document.querySelector('form');
       if (!el) throw new Error('Form not found');
       el.submit();
       return { success: true, action: 'submit' };
@@ -47,12 +221,14 @@
       return true;
     }
     if (msg.type !== 'EXECUTE_ACTION') return false;
-    try {
-      const result = executeAction(msg.action);
-      sendResponse({ ok: true, result });
-    } catch (err) {
-      sendResponse({ ok: false, error: err.message });
-    }
-    return true;
+    (async () => {
+      try {
+        const result = await Promise.resolve(executeAction(msg.action));
+        sendResponse({ ok: true, result });
+      } catch (err) {
+        sendResponse({ ok: false, error: err.message });
+      }
+    })();
+    return true; // Keep channel open for async sendResponse
   });
 })();

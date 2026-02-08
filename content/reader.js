@@ -63,7 +63,7 @@
     });
 
     const inputs = [];
-    document.querySelectorAll('input:not([type="hidden"]), select, textarea, [contenteditable="true"]').forEach((inp) => {
+    document.querySelectorAll('input:not([type="hidden"]), select, textarea, [contenteditable="true"], [contenteditable="plaintext-only"], div[contenteditable], [contenteditable]').forEach((inp) => {
       if (!isVisible(inp)) return;
       let label = '';
       const id = inp.id;
@@ -73,8 +73,27 @@
       }
       if (!label && inp.closest('label')) label = (inp.closest('label').textContent || '').trim().slice(0, 200);
       if (!label && inp.previousElementSibling?.tagName?.toLowerCase() === 'label') label = (inp.previousElementSibling.textContent || '').trim().slice(0, 200);
-      const inpType = inp.type || (inp.getAttribute?.('contenteditable') ? 'contenteditable' : inp.tagName?.toLowerCase?.()) || 'text';
-      inputs.push({ name: inp.name || '', type: inpType, label, placeholder: inp.placeholder || inp.getAttribute?.('data-placeholder') || '', selector: getSelector(inp) });
+      
+      // Detect type
+      let inpType = inp.type || inp.tagName?.toLowerCase?.() || 'text';
+      if (inp.getAttribute?.('contenteditable') || inp.isContentEditable) {
+        inpType = 'contenteditable';
+      }
+      
+      // Get placeholder from various sources
+      const placeholder = inp.placeholder || 
+                         inp.getAttribute?.('data-placeholder') || 
+                         inp.getAttribute?.('aria-placeholder') ||
+                         inp.getAttribute?.('aria-label') || '';
+      
+      inputs.push({ 
+        name: inp.name || '', 
+        type: inpType, 
+        label, 
+        placeholder, 
+        selector: getSelector(inp),
+        id: inp.id || ''
+      });
     });
 
     const forms = [];
