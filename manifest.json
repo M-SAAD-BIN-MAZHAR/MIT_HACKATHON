@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "Web Agent API - Universal AI Browser",
+  "version": "2.0.0",
+  "description": "Bring Your Own AI to Every Website - Browser-level agent with MCP, memory, voice, and graduated capability tiers",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "tabs",
+    "storage",
+    "sidePanel",
+    "contextMenus",
+    "notifications"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "orchestrator-v2.js"
+  },
+  "side_panel": {
+    "default_path": "ui/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/reader.js", "content/executor.js", "content/voiceInterface.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Web Agent API",
+    "default_popup": "ui/popup.html"
+  },
+  "commands": {
+    "activate-voice": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+V",
+        "mac": "Command+Shift+V"
+      },
+      "description": "Activate voice control"
+    },
+    "quick-action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+A",
+        "mac": "Command+Shift+A"
+      },
+      "description": "Quick agent action"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["ui/*", "icons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

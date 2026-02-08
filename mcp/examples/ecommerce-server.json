@@ -1,0 +1,114 @@
+{
+  "name": "ecommerce-mcp",
+  "description": "E-commerce site MCP server for product search and purchase",
+  "transport": "http",
+  "url": "https://example-shop.com/mcp",
+  "capabilities": {
+    "tools": [
+      {
+        "name": "search_products",
+        "description": "Search for products on this site",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query"
+            },
+            "category": {
+              "type": "string",
+              "description": "Product category filter"
+            },
+            "min_price": {
+              "type": "number",
+              "description": "Minimum price"
+            },
+            "max_price": {
+              "type": "number",
+              "description": "Maximum price"
+            },
+            "sort_by": {
+              "type": "string",
+              "enum": ["relevance", "price_low", "price_high", "rating"],
+              "default": "relevance"
+            }
+          },
+          "required": ["query"]
+        },
+        "capabilities": ["read"]
+      },
+      {
+        "name": "get_product_details",
+        "description": "Get detailed information about a product",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "product_id": {
+              "type": "string",
+              "description": "Product identifier"
+            }
+          },
+          "required": ["product_id"]
+        },
+        "capabilities": ["read"]
+      },
+      {
+        "name": "add_to_cart",
+        "description": "Add product to shopping cart",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "product_id": {
+              "type": "string",
+              "description": "Product identifier"
+            },
+            "quantity": {
+              "type": "number",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          "required": ["product_id"]
+        },
+        "capabilities": ["write", "modify"]
+      },
+      {
+        "name": "checkout",
+        "description": "Proceed to checkout with current cart",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "shipping_address": {
+              "type": "object",
+              "properties": {
+                "street": { "type": "string" },
+                "city": { "type": "string" },
+                "state": { "type": "string" },
+                "zip": { "type": "string" },
+                "country": { "type": "string" }
+              }
+            },
+            "payment_method": {
+              "type": "string",
+              "description": "Payment method identifier"
+            }
+          },
+          "required": ["shipping_address", "payment_method"]
+        },
+        "capabilities": ["write", "submit", "payment"]
+      }
+    ],
+    "resources": [
+      {
+        "uri": "cart://current",
+        "name": "Shopping Cart",
+        "description": "Current user's shopping cart"
+      },
+      {
+        "uri": "products://featured",
+        "name": "Featured Products",
+        "description": "Currently featured products"
+      }
+    ]
+  }
+}

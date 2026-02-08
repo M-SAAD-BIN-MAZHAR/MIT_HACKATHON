@@ -1,0 +1,58 @@
+{
+  "name": "weather-mcp",
+  "description": "Weather information MCP server",
+  "transport": "http",
+  "url": "http://localhost:3000/mcp",
+  "capabilities": {
+    "tools": [
+      {
+        "name": "get_weather",
+        "description": "Get current weather for a location",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "location": {
+              "type": "string",
+              "description": "City name or coordinates"
+            },
+            "units": {
+              "type": "string",
+              "enum": ["metric", "imperial"],
+              "default": "metric"
+            }
+          },
+          "required": ["location"]
+        },
+        "capabilities": ["read"]
+      },
+      {
+        "name": "get_forecast",
+        "description": "Get weather forecast for next 7 days",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "location": {
+              "type": "string",
+              "description": "City name or coordinates"
+            },
+            "days": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 7,
+              "default": 3
+            }
+          },
+          "required": ["location"]
+        },
+        "capabilities": ["read"]
+      }
+    ],
+    "resources": [
+      {
+        "uri": "weather://current",
+        "name": "Current Weather",
+        "description": "Real-time weather data"
+      }
+    ]
+  }
+}

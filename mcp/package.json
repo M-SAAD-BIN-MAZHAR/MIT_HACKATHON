@@ -1,0 +1,17 @@
+{
+  "name": "web-agent-mcp-server",
+  "version": "1.0.0",
+  "description": "Real MCP server for Web Agent API demonstration",
+  "main": "real-mcp-server.js",
+  "scripts": {
+    "start": "node real-mcp-server.js",
+    "mock": "node mock-server.js"
+  },
+  "keywords": ["mcp", "model-context-protocol", "ai", "browser-automation"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  }
+}

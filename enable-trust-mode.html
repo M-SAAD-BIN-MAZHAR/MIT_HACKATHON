@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Enable Trust Mode</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      padding: 15px 30px;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 10px 0;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    .status {
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+      display: none;
+    }
+    .success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔧 Enable Trust Mode</h1>
+  
+  <p>This will enable Trust Mode for easier testing. The extension will auto-approve all actions.</p>
+  
+  <button onclick="enableTrustMode()">Enable Trust Mode</button>
+  <button onclick="checkStatus()">Check Current Status</button>
+  
+  <div id="status" class="status"></div>
+  
+  <h2>What Trust Mode Does:</h2>
+  <ul>
+    <li>✅ Auto-approves all permissions</li>
+    <li>✅ Auto-fills forms with your profile</li>
+    <li>✅ Skips confirmation dialogs</li>
+    <li>✅ Perfect for demos and testing</li>
+  </ul>
+  
+  <h2>Manual Steps:</h2>
+  <ol>
+    <li>Click the extension icon</li>
+    <li>Click Settings (gear icon)</li>
+    <li>Enable "Trust Mode" checkbox</li>
+    <li>Click "Save Settings"</li>
+  </ol>
+
+  <script>
+    function showStatus(message, type = 'success') {
+      const statusDiv = document.getElementById('status');
+      statusDiv.className = `status ${type}`;
+      statusDiv.textContent = message;
+      statusDiv.style.display = 'block';
+    }
+
+    function enableTrustMode() {
+      chrome.storage.local.set({
+        uwa_trust_mode: true,
+        uwa_auto_fill_forms: true,
+        uwa_voice_enabled: true,
+        uwa_memory_enabled: true
+      }, () => {
+        showStatus('✅ Trust Mode enabled! Reload the extension popup and try again.', 'success');
+      });
+    }
+
+    function checkStatus() {
+      chrome.storage.local.get([
+        'uwa_trust_mode',
+        'uwa_auto_fill_forms',
+        'uwa_voice_enabled',
+        'uwa_memory_enabled'
+      ], (data) => {
+        const status = `
+Current Settings:
+• Trust Mode: ${data.uwa_trust_mode ? '✅ Enabled' : '❌ Disabled'}
+• Auto-fill Forms: ${data.uwa_auto_fill_forms ? '✅ Enabled' : '❌ Disabled'}
+• Voice: ${data.uwa_voice_enabled ? '✅ Enabled' : '❌ Disabled'}
+• Memory: ${data.uwa_memory_enabled !== false ? '✅ Enabled' : '❌ Disabled'}
+        `;
+        showStatus(status, 'info');
+      });
+    }
+  </script>
+</body>
+</html>

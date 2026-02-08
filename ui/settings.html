@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web Agent API - Settings</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    .section {
+      margin-bottom: 30px;
+      padding-bottom: 30px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .section:last-child {
+      border-bottom: none;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-description {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #444;
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="password"],
+    .form-group select {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .form-group small {
+      display: block;
+      margin-top: 6px;
+      font-size: 12px;
+      color: #888;
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+
+    .checkbox-group label {
+      flex: 1;
+      cursor: pointer;
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .tier-selector {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .tier-card {
+      padding: 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .tier-card:hover {
+      border-color: #667eea;
+      background: #f8f9fa;
+    }
+
+    .tier-card.active {
+      border-color: #667eea;
+      background: #667eea;
+      color: white;
+    }
+
+    .tier-card .tier-number {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .tier-card .tier-name {
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .tier-card .tier-desc {
+      font-size: 10px;
+      opacity: 0.8;
+    }
+
+    .button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .button-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .button-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .button-secondary {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .button-secondary:hover {
+      background: #e0e0e0;
+    }
+
+    .button-danger {
+      background: #ff4757;
+      color: white;
+    }
+
+    .button-danger:hover {
+      background: #ee5a6f;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .stat-card {
+      padding: 16px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #667eea;
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .alert {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+    .alert-success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .alert-warning {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeaa7;
+    }
+
+    .alert-info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⚙️ Web Agent API Settings</h1>
+      <p>Configure your AI browser assistant</p>
+    </div>
+
+    <div class="content">
+      <!-- LLM Configuration -->
+      <div class="section">
+        <div class="section-title">🤖 LLM Configuration</div>
+        <div class="section-description">
+          Configure your AI model connection. Supports OpenAI, Azure OpenAI, or any OpenAI-compatible endpoint.
+        </div>
+
+        <div class="form-group">
+          <label for="apiKey">API Key *</label>
+          <input type="password" id="apiKey" placeholder="sk-...">
+          <small>Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI</a> or your provider</small>
+        </div>
+
+        <div class="form-group">
+          <label for="apiUrl">API URL</label>
+          <input type="text" id="apiUrl" placeholder="https://api.openai.com/v1/chat/completions">
+          <small>Leave default for OpenAI, or use your custom endpoint</small>
+        </div>
+
+        <div class="form-group">
+          <label for="model">Model</label>
+          <select id="model">
+            <option value="gpt-4o-mini">GPT-4o Mini (Recommended)</option>
+            <option value="gpt-4o">GPT-4o</option>
+            <option value="gpt-4-turbo">GPT-4 Turbo</option>
+            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+          </select>
+          <small>Choose the model that best fits your needs and budget</small>
+        </div>
+      </div>
+
+      <!-- Capability Tier -->
+      <div class="section">
+        <div class="section-title">🎚️ Capability Tier</div>
+        <div class="section-description">
+          Control what the agent can do. Higher tiers enable more capabilities but require more permissions.
+        </div>
+
+        <div class="tier-selector">
+          <div class="tier-card" data-tier="1">
+            <div class="tier-number">1</div>
+            <div class="tier-name">Core AI</div>
+            <div class="tier-desc">LLM + Tools only</div>
+          </div>
+          <div class="tier-card active" data-tier="2">
+            <div class="tier-number">2</div>
+            <div class="tier-name">Browser Context</div>
+            <div class="tier-desc">Read + Navigate</div>
+          </div>
+          <div class="tier-card" data-tier="3">
+            <div class="tier-number">3</div>
+            <div class="tier-name">Full Automation</div>
+            <div class="tier-desc">Forms + Multi-tab</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- User Profile -->
+      <div class="section">
+        <div class="section-title">👤 User Profile</div>
+        <div class="section-description">
+          Your profile helps auto-fill forms and personalize experiences. All data stays local.
+        </div>
+
+        <div class="form-group">
+          <label for="profileName">Name</label>
+          <input type="text" id="profileName" placeholder="John Doe">
+        </div>
+
+        <div class="form-group">
+          <label for="profileEmail">Email</label>
+          <input type="text" id="profileEmail" placeholder="john@example.com">
+        </div>
+
+        <div class="form-group">
+          <label for="profilePhone">Phone</label>
+          <input type="text" id="profilePhone" placeholder="+1 (555) 123-4567">
+        </div>
+      </div>
+
+      <!-- Features -->
+      <div class="section">
+        <div class="section-title">✨ Features</div>
+        <div class="section-description">
+          Enable or disable specific features based on your preferences.
+        </div>
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="trustMode">
+          <label for="trustMode">
+            <strong>Trust Mode</strong><br>
+            <small>Auto-approve all actions (use with caution)</small>
+          </label>
+        </div>
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="autoFillForms">
+          <label for="autoFillForms">
+            <strong>Auto-Fill Forms</strong><br>
+            <small>Automatically fill forms using your profile</small>
+          </label>
+        </div>
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="voiceEnabled">
+          <label for="voiceEnabled">
+            <strong>Voice Control</strong><br>
+            <small>Enable voice commands and narration</small>
+          </label>
+        </div>
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="memoryEnabled" checked>
+          <label for="memoryEnabled">
+            <strong>Memory & Learning</strong><br>
+            <small>Remember preferences and successful workflows</small>
+          </label>
+        </div>
+      </div>
+
+      <!-- Memory Management -->
+      <div class="section">
+        <div class="section-title">🧠 Memory Management</div>
+        <div class="section-description">
+          Control how the agent remembers and learns from your interactions.
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="memoryCount">0</div>
+            <div class="stat-label">Memories</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="workflowCount">0</div>
+            <div class="stat-label">Workflows</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="preferenceCount">0</div>
+            <div class="stat-label">Preferences</div>
+          </div>
+        </div>
+
+        <div class="button-group">
+          <button class="button button-secondary" id="exportMemory">Export Memory</button>
+          <button class="button button-secondary" id="importMemory">Import Memory</button>
+          <button class="button button-danger" id="clearMemory">Clear All Memory</button>
+        </div>
+      </div>
+
+      <!-- Audit Log -->
+      <div class="section">
+        <div class="section-title">📋 Audit & Privacy</div>
+        <div class="section-description">
+          Review agent actions and manage your data.
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="actionCount">0</div>
+            <div class="stat-label">Actions</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="permissionCount">0</div>
+            <div class="stat-label">Permissions</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="toolCallCount">0</div>
+            <div class="stat-label">Tool Calls</div>
+          </div>
+        </div>
+
+        <div class="button-group">
+          <button class="button button-secondary" id="viewAuditLog">View Audit Log</button>
+          <button class="button button-secondary" id="exportAuditLog">Export Audit Log</button>
+          <button class="button button-danger" id="clearAuditLog">Clear Audit Log</button>
+        </div>
+      </div>
+
+      <!-- Save Button -->
+      <div class="button-group">
+        <button class="button button-primary" id="saveSettings">Save Settings</button>
+        <button class="button button-secondary" id="resetSettings">Reset to Defaults</button>
+      </div>
+
+      <div id="saveAlert" class="alert alert-success hidden">
+        Settings saved successfully!
+      </div>
+    </div>
+  </div>
+
+  <script src="settings.js"></script>
+</body>
+</html>

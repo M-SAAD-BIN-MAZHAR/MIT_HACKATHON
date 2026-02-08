@@ -1,0 +1,31 @@
+# Node modules
+node_modules/
+mcp/node_modules/
+
+# Package locks
+package-lock.json
+mcp/package-lock.json
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Chrome extension
+*.crx
+*.pem
+
+# Temporary files
+*.tmp
+*.temp

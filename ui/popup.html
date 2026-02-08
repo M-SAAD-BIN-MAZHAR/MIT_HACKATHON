@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Universal Multi-Agent Web Operator</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 12px; min-width: 360px; height: 100vh; overflow-y: auto; background: #0f0f12; color: #e4e4e7; }
+    h1 { font-size: 14px; margin: 0 0 12px; color: #a1a1aa; font-weight: 600; }
+    label { display: block; font-size: 11px; color: #71717a; margin-bottom: 4px; }
+    input, textarea, button { font-family: inherit; }
+    textarea { width: 100%; min-height: 60px; padding: 8px; border: 1px solid #27272a; border-radius: 6px; background: #18181b; color: #e4e4e7; font-size: 12px; resize: vertical; }
+    input { width: 100%; padding: 8px; border: 1px solid #27272a; border-radius: 6px; background: #18181b; color: #e4e4e7; font-size: 12px; }
+    button { padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; border: none; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-secondary { background: #27272a; color: #e4e4e7; }
+    .btn-secondary:hover { background: #3f3f46; }
+    .btn-danger { background: #dc2626; color: white; }
+    .btn-success { background: #16a34a; color: white; }
+    .section { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #27272a; }
+    .section:last-of-type { border-bottom: none; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+    .feed { background: #18181b; border-radius: 6px; padding: 8px; min-height: 200px; max-height: 400px; overflow-y: auto; font-size: 11px; font-family: ui-monospace, monospace; }
+    .feed-item { padding: 4px 0; border-bottom: 1px solid #27272a; color: #a1a1aa; }
+    .feed-item:last-child { border-bottom: none; }
+    .feed-item.decision { color: #a78bfa; }
+    .feed-item.navigator { color: #38bdf8; }
+    .feed-item.reader { color: #34d399; }
+    .feed-item.executor { color: #fbbf24; }
+    .feed-item.permission { color: #f87171; }
+    .feed-item.decision_initial, .feed-item.decision_final { color: #a78bfa; }
+    .feed-item.system { color: #a1a1aa; }
+    .status-bar { background: #27272a; padding: 8px; border-radius: 6px; margin-bottom: 8px; font-size: 12px; color: #34d399; }
+    .agent-active { display: flex; align-items: center; gap: 8px; padding: 8px; background: linear-gradient(90deg, #1e3a5f 0%, #0f0f12 100%); border-radius: 8px; margin-bottom: 12px; border: 1px solid #3b82f6; }
+    .agent-active.hidden { display: none; }
+    .agent-pulse { width: 10px; height: 10px; background: #3b82f6; border-radius: 50%; animation: pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } }
+    .agent-spinner { width: 16px; height: 16px; border: 2px solid #27272a; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .first-visit-banner { background: linear-gradient(135deg, #1e3a5f 0%, #27272a 100%); padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid #3b82f6; }
+    .first-visit-banner.hidden { display: none; }
+    .form-choices { background: #27272a; padding: 12px; border-radius: 8px; margin-bottom: 12px; max-height: 200px; overflow-y: auto; }
+    .form-choices.hidden { display: none; }
+    .form-choice-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; }
+    .form-choice-item input { width: auto; }
+    .permission-dialog { background: #27272a; border-radius: 8px; padding: 12px; margin-top: 8px; }
+    .permission-dialog .btns { display: flex; gap: 8px; margin-top: 8px; }
+    .collapsible { cursor: pointer; user-select: none; }
+    .collapsible::before { content: '▶ '; font-size: 10px; }
+    .collapsible.open::before { content: '▼ '; }
+    .collapsed { display: none; }
+  </style>
+</head>
+<body>
+  <h1>Universal Multi-Agent Web Operator <a href="settings.html" target="_blank" style="float:right;font-size:12px;color:#3b82f6;text-decoration:none;">⚙️ Settings</a></h1>
+
+  <div id="agentActiveBar" class="agent-active hidden">
+    <div class="agent-spinner"></div>
+    <span id="agentActiveText">Agent working...</span>
+  </div>
+
+  <div id="firstVisitBanner" class="first-visit-banner hidden">
+    <strong>First time on this site</strong>
+    <p style="margin:8px 0;font-size:12px;color:#a1a1aa;">Save your info for form auto-fill:</p>
+    <label>Name</label>
+    <input type="text" id="profileName" placeholder="Your name">
+    <label style="margin-top:6px">Email</label>
+    <input type="email" id="profileEmail" placeholder="your@email.com">
+    <label style="margin-top:6px">Phone</label>
+    <input type="text" id="profilePhone" placeholder="+1 234 567 8900">
+    <div class="controls" style="margin-top:12px">
+      <button class="btn-primary" id="btnSaveProfile">Save</button>
+      <button class="btn-secondary" id="btnSkipProfile">Skip</button>
+    </div>
+  </div>
+
+  <div id="formChoicesSection" class="form-choices hidden">
+    <strong>Select fields to auto-fill:</strong>
+    <div id="formChoicesList"></div>
+    <div class="controls" style="margin-top:12px">
+      <button class="btn-success" id="btnFillSelected">Fill Selected</button>
+      <button class="btn-secondary" id="btnSkipFill">Skip</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <label for="apiKey">LLM API Key</label>
+    <input type="password" id="apiKey" placeholder="sk-... (OpenAI or compatible)">
+    <label for="apiUrl" style="margin-top:8px">API URL (optional)</label>
+    <input type="text" id="apiUrl" placeholder="https://api.openai.com/v1/chat/completions">
+    <label for="model" style="margin-top:8px">Model (optional)</label>
+    <input type="text" id="model" placeholder="gpt-4o-mini">
+  </div>
+
+  <div class="section">
+    <label for="userGoal">User Goal</label>
+    <textarea id="userGoal" placeholder="e.g. Search for laptops on Amazon"></textarea>
+  </div>
+
+  <div class="section">
+    <label class="form-choice-item"><input type="checkbox" id="trustMode"> Trust mode — fully autonomous (no prompts)</label>
+    <label class="form-choice-item" style="margin-top:6px"><input type="checkbox" id="autoFillForms"> Auto-fill forms — fill login/forms with my saved info (grant once, no per-form prompts)</label>
+    <label class="form-choice-item" style="margin-top:6px"><input type="checkbox" id="autoGoal"> Auto-run goal on each page load (requires Trust mode)</label>
+  </div>
+
+  <div class="section">
+    <div class="controls">
+      <button class="btn-primary" id="btnStart">Start AI</button>
+      <button class="btn-secondary" id="btnPause">Pause</button>
+      <button class="btn-danger" id="btnStop">Stop</button>
+      <button class="btn-success" id="btnApprove">Approve Action</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div id="statusBar" class="status-bar">Idle — Enter a goal and click Start AI</div>
+    <div class="collapsible open" id="toggleFeed">Live Activity Feed</div>
+    <div id="feed" class="feed"></div>
+  </div>
+
+  <div class="section" id="permissionSection" style="display:none">
+    <div class="permission-dialog">
+      <div id="permissionText">Permission required</div>
+      <div class="btns">
+        <button class="btn-success" id="btnGrant">Grant</button>
+        <button class="btn-secondary" id="btnDeny">Deny</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+  <script src="executionPanel.js"></script>
+</body>
+</html>
