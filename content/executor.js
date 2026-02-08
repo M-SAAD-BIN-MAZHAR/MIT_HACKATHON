@@ -71,15 +71,17 @@
       }
     }
 
-    // For buttons - try text matching (add to cart, save, done, search, etc.)
-    const buttonLikeSelectors = lower.includes('button') || lower === 'button' || lower.includes('add') || lower.includes('cart') || lower.includes('search') || lower.includes('save') || lower.includes('done') || lower.includes('close') || lower.includes('check');
+    // For buttons - try text matching (add to cart, save, done, search, send, etc.)
+    // Include long selectors (e.g. Gmail nth-of-type chains) and dynamic IDs so we still run button fallbacks
+    const looksLikeFragileSelector = selector.length > 60 || /^#[a-zA-Z]{5,}$/.test(selector.trim()) || (selector.includes('nth-of-type') && selector.includes('div'));
+    const buttonLikeSelectors = looksLikeFragileSelector || lower.includes('button') || lower === 'button' || lower.includes('add') || lower.includes('cart') || lower.includes('search') || lower.includes('save') || lower.includes('done') || lower.includes('close') || lower.includes('check') || lower.includes('send') || lower.includes('submit');
     if (buttonLikeSelectors) {
       let buttons = Array.from(document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"], a[role="button"], span[role="button"], input[value], div[role="button"]'));
-      // Google Keep / note apps: icon buttons with aria-label (Done, Save, Close) — add to list
-      if (lower.includes('save') || lower.includes('done') || lower.includes('close') || lower.includes('check')) {
+      // Google Keep / note apps and Gmail: icon buttons with aria-label (Done, Save, Close, Send) — add to list
+      if (lower.includes('save') || lower.includes('done') || lower.includes('close') || lower.includes('check') || lower.includes('send') || looksLikeFragileSelector) {
         document.querySelectorAll('[aria-label], [title]').forEach((el) => {
           const label = (el.getAttribute('aria-label') || el.getAttribute('title') || '').toLowerCase();
-          if (label && ['done', 'save', 'close', 'check', 'tick', 'submit', 'confirm'].some((t) => label.includes(t)) && isElementVisible(el)) {
+          if (label && ['done', 'save', 'close', 'check', 'tick', 'submit', 'confirm', 'send'].some((t) => label.includes(t)) && isElementVisible(el)) {
             buttons.push(el);
           }
         });
@@ -193,6 +195,37 @@
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  /**
+   * Dismiss in-page confirmation dialogs (e.g. LeetCode "Your code will be discarded").
+   * Finds a modal/dialog with known text and clicks the confirm button (Replace / OK / Yes).
+   */
+  function dismissConfirmationDialog() {
+    const confirmTexts = ['your code will be discarded', 'are you sure', 'discard changes', 'replace with', 'replaced with your last submission'];
+    const confirmButtonLabels = ['replace', 'ok', 'yes', 'confirm', 'submit', 'allow', 'accept'];
+    const cancelLabels = ['cancel', 'no', 'back'];
+
+    const allText = document.body ? document.body.innerText || '' : '';
+    const hasConfirmDialog = confirmTexts.some((t) => allText.toLowerCase().includes(t));
+    if (!hasConfirmDialog) return false;
+
+    // Prefer buttons inside a dialog; fallback to full document (LeetCode may use React portal)
+    const dialog = document.querySelector('[role="dialog"]');
+    const scopes = dialog ? [dialog, document.body] : [document.body];
+    for (const scope of scopes) {
+      const buttons = scope.querySelectorAll('button, [role="button"], a[role="button"], div[role="button"], [data-e2e-locator="confirm-button"], span[role="button"]');
+      for (const btn of buttons) {
+        if (!isElementVisible(btn)) continue;
+        const text = (btn.textContent || btn.getAttribute('aria-label') || btn.value || '').trim().toLowerCase();
+        if (cancelLabels.some((c) => text === c || text.startsWith(c + ' '))) continue;
+        if (confirmButtonLabels.some((c) => text.includes(c))) {
+          btn.click();
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   function executeAction(action) {
     const type = (action.type || '').toUpperCase();
     if (type === 'NAVIGATE') {
@@ -239,6 +272,17 @@
     (async () => {
       try {
         const result = await Promise.resolve(executeAction(msg.action));
+        const actionType = (msg.action?.type || '').toUpperCase();
+        // After TYPE or CLICK, LeetCode (and similar) may show "Your code will be discarded" — auto-dismiss so submit can proceed
+        if (actionType === 'TYPE' || actionType === 'CLICK') {
+          for (const delay of [350, 550]) {
+            await new Promise((r) => setTimeout(r, delay));
+            if (dismissConfirmationDialog()) {
+              await new Promise((r) => setTimeout(r, 200));
+              break;
+            }
+          }
+        }
         sendResponse({ ok: true, result });
       } catch (err) {
         sendResponse({ ok: false, error: err.message });
