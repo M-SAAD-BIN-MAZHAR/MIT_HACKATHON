@@ -106,6 +106,16 @@
           if (text.includes(selText) || selText.includes(text)) return btn;
         }
       }
+      // Daraz / e‑commerce: "Add to Cart" may be a div or span without role="button" — search by text
+      if (lower.includes('add to cart') || lower.includes('add to bag') || lower === 'add to cart' || lower === 'add to bag') {
+        const cartPhrases = ['add to cart', 'add to bag', 'add to basket', 'add to'];
+        const allClickables = document.querySelectorAll('button, [role="button"], a, div[onclick], span[onclick], input[type="submit"], [data-action], .btn, [class*="add-to-cart"], [class*="addToCart"]');
+        for (const el of allClickables) {
+          if (!isElementVisible(el)) continue;
+          const t = (el.textContent || el.getAttribute('aria-label') || el.title || '').toLowerCase();
+          if (cartPhrases.some((p) => t.includes(p)) && t.length < 100) return el;
+        }
+      }
       // Fallback: first visible button
       for (const btn of buttons) {
         if (isElementVisible(btn)) return btn;
@@ -272,22 +282,16 @@
     (async () => {
       try {
         const result = await Promise.resolve(executeAction(msg.action));
-        const actionType = (msg.action?.type || '').toUpperCase();
-        // After TYPE or CLICK, LeetCode (and similar) may show "Your code will be discarded" — auto-dismiss so submit can proceed
-        if (actionType === 'TYPE' || actionType === 'CLICK') {
-          for (const delay of [350, 550]) {
-            await new Promise((r) => setTimeout(r, delay));
-            if (dismissConfirmationDialog()) {
-              await new Promise((r) => setTimeout(r, 200));
-              break;
-            }
-          }
-        }
         sendResponse({ ok: true, result });
+        const actionType = (msg.action?.type || '').toUpperCase();
+        if (actionType === 'TYPE' || actionType === 'CLICK') {
+          setTimeout(() => dismissConfirmationDialog(), 350);
+          setTimeout(() => dismissConfirmationDialog(), 550);
+        }
       } catch (err) {
         sendResponse({ ok: false, error: err.message });
       }
     })();
-    return true; // Keep channel open for async sendResponse
+    return true;
   });
 })();

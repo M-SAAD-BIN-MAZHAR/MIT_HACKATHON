@@ -246,17 +246,45 @@ function broadcastLog(node, msg, data) {
 }
 
 /**
- * Start voice-controlled session
+ * Start voice-controlled session — show overlay on active tab (browser Web Speech API only).
+ * Injects voice content script if missing to fix "Receiving end does not exist".
  */
 async function startVoiceSession(sendResponse) {
   try {
+    const tab = await getActiveTab();
+    if (!tab?.id) {
+      sendResponse({ ok: false, error: 'No active tab' });
+      return;
+    }
+    const url = (tab.url || '').toLowerCase();
+    if (url.startsWith('chrome://') || url.startsWith('edge://') || url.startsWith('about:') || url.startsWith('chrome-extension://')) {
+      sendResponse({ ok: false, error: 'Voice works on web pages only. Open a site (e.g. google.com) and try again.' });
+      return;
+    }
     broadcastLog('voice', 'Listening for command...', {});
-    
-    // This would be handled in content script with voice agent
-    // For now, just acknowledge
-    sendResponse({ ok: true, message: 'Voice session started' });
+
+    try {
+      await chrome.tabs.sendMessage(tab.id, { type: 'SHOW_VOICE_OVERLAY' });
+    } catch (e) {
+      if (e?.message?.includes('Receiving end does not exist') || e?.message?.includes('Could not establish connection')) {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['content/voiceInterface.js'],
+          });
+          await new Promise((r) => setTimeout(r, 300));
+          await chrome.tabs.sendMessage(tab.id, { type: 'SHOW_VOICE_OVERLAY' });
+        } catch (e2) {
+          sendResponse({ ok: false, error: 'Reload the page and try Voice again, or open a normal website first.' });
+          return;
+        }
+      } else {
+        throw e;
+      }
+    }
+    sendResponse({ ok: true, message: 'Speak your goal in the overlay on the page' });
   } catch (err) {
-    sendResponse({ ok: false, error: err.message });
+    sendResponse({ ok: false, error: err.message || 'Voice failed. Open a web page and try again.' });
   }
 }
 
